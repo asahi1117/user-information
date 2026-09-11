@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHubユーザー情報表示ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+    <main class="max-w-xl mx-auto px-4 py-8 sm:py-12">
+        <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 mb-2">
+            GitHubユーザー情報
+        </h1>
+        <p class="text-slate-600 mb-6">
+            GitHubのユーザー名を入力して、プロフィール情報を表示します。
+        </p>
+
+        <form id="searchForm" class="bg-white rounded-xl shadow p-4 sm:p-6 mb-6">
+            <label for="usernameInput" class="block text-sm font-medium text-slate-700 mb-2">
+                ユーザー名
+            </label>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input
+                    id="usernameInput"
+                    type="text"
+                    autocomplete="username"
+                    class="flex-1 border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    placeholder="例: octocat"
+                >
+                <button
+                    id="searchButton"
+                    type="submit"
+                    class="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    検索
+                </button>
+            </div>
+        </form>
+
+        <p id="statusMessage" class="text-sm font-medium text-slate-500 mb-4"></p>
+
+        <section id="userCard" class="hidden bg-white rounded-xl shadow p-5 sm:p-6">
+            <div class="flex flex-col sm:flex-row sm:items-start gap-5">
+                <img
+                    id="avatar"
+                    alt="ユーザーのアバター"
+                    class="w-24 h-24 rounded-full object-cover mx-auto sm:mx-0"
+                >
+                <div class="flex-1 text-center sm:text-left">
+                    <h2 id="displayName" class="text-xl font-bold text-slate-900"></h2>
+                    <p id="loginName" class="text-sm text-slate-500 mb-3"></p>
+                    <p id="bio" class="text-slate-700 mb-4"></p>
+                    <dl class="grid grid-cols-2 gap-3 text-sm">
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <dt class="text-slate-500">フォロワー</dt>
+                            <dd id="followers" class="text-lg font-semibold text-slate-900"></dd>
+                        </div>
+                        <div class="bg-slate-50 rounded-lg p-3">
+                            <dt class="text-slate-500">公開リポジトリ</dt>
+                            <dd id="publicRepos" class="text-lg font-semibold text-slate-900"></dd>
+                        </div>
+                    </dl>
+                    <a
+                        id="profileLink"
+                        href="#"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-block mt-4 text-blue-600 hover:underline"
+                    >
+                        GitHubプロフィールを開く
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const searchForm = document.getElementById("searchForm");
+        const usernameInput = document.getElementById("usernameInput");
+        const searchButton = document.getElementById("searchButton");
+        const statusMessage = document.getElementById("statusMessage");
+        const userCard = document.getElementById("userCard");
+        const avatar = document.getElementById("avatar");
+        const displayName = document.getElementById("displayName");
+        const loginName = document.getElementById("loginName");
+        const bio = document.getElementById("bio");
+        const followers = document.getElementById("followers");
+        const publicRepos = document.getElementById("publicRepos");
+        const profileLink = document.getElementById("profileLink");
+
+        function setStatus(text, type) {
+            statusMessage.textContent = text;
+
+            if (type === "error") {
+                statusMessage.className = "text-sm font-medium text-red-600 mb-4";
+            } else if (type === "loading") {
+                statusMessage.className = "text-sm font-medium text-blue-600 mb-4";
+            } else {
+                statusMessage.className = "text-sm font-medium text-slate-500 mb-4";
+            }
+        }
+
+        function hideUserCard() {
+            userCard.classList.add("hidden");
+        }
+
+        function showUser(user) {
+            avatar.src = user.avatar_url;
+            displayName.textContent = user.name || user.login;
+            bio.textContent = user.bio || "自己紹介はありません";
+            loginName.textContent = "@" + user.login;
+            followers.textContent = user.followers;
+            publicRepos.textContent = user.public_repos;
+            profileLink.href = user.html_url;
+            userCard.classList.remove("hidden");
+        }
+
+        async function fetchGitHubUser(username) {
+            const url = "https://api.github.com/users/" + encodeURIComponent(username);
+            const response = await fetch(url);
+
+            console.log("HTTPステータス:", response.status);
+            console.log("response.ok:", response.ok);
+
+            if (!response.ok) {
+                throw new Error("ユーザーが見つかりませんでした");
+            }
+
+            const user = await response.json();
+            console.log("取得したGitHubユーザーデータ:", user);
+            console.log("使うプロパティ:", {
+                avatar_url: user.avatar_url,
+                name: user.name,
+                bio: user.bio,
+                followers: user.followers,
+                public_repos: user.public_repos,
+                html_url: user.html_url,
+                login: user.login
+            });
+
+            return user;
+        }
+
+        async function handleSearch(event) {
+            event.preventDefault();
+
+            const username = usernameInput.value.trim();
+
+            if (username === "") {
+                hideUserCard();
+                setStatus("ユーザー名を入力してください。", "error");
+                return;
+            }
+
+            searchButton.disabled = true;
+            hideUserCard();
+            setStatus("読み込み中...", "loading");
+
+            try {
+                const user = await fetchGitHubUser(username);
+                showUser(user);
+                setStatus("ユーザー情報を表示しています。");
+            } catch (error) {
+                hideUserCard();
+                setStatus("ユーザーが見つかりませんでした", "error");
+                console.error(error);
+            } finally {
+                searchButton.disabled = false;
+            }
+        }
+
+        searchForm.addEventListener("submit", handleSearch);
+    </script>
+</body>
+</html>
